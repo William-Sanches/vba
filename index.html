@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Requisições - Controle</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>Requisições Gravadas</h1>
+
+  <div>
+    <input type="text" id="busca" placeholder="Pesquisar...">
+    <button id="abrir-cadastro">Nova Requisição</button>
+  </div>
+
+  <table id="requisicoes-tabela">
+    <thead>
+      <tr id="tabela-cabecalho"></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <div id="form-container" style="display:none">
+    <h2>Cadastrar Nova Requisição</h2>
+    <form id="requisicao-form">
+      <label>Código: <input type="text" id="codigo" required></label>
+      <label>1Doc Solicitação: <input type="text" id="doc_solicitacao"></label>
+      <label>Solicitado por: <input type="text" id="solicitado_por"></label>
+      <label>1Doc Requisição: <input type="text" id="doc_requisicao"></label>
+      <label>Ficha: <input type="number" id="ficha"></label>
+      <label>RMS: <input type="number" id="rms"></label>
+      <label>Número do Ofício: <input type="text" id="numero_oficio"></label>
+      <label>Data: <input type="date" id="data1"></label>
+      <label>Objeto da Compra: <input type="text" id="objeto"></label>
+      <label>Unid. de Destino: <input type="number" id="unidade_destino"></label>
+      <label>Tipo de Requisição: <input type="text" id="tipo"></label>
+      <label>Valor: <input type="number" step="0.01" id="valor"></label>
+      <label>Sub-elemento: <input type="number" id="subelemento"></label>
+      <label>Contabilizar "D": <input type="text" id="contabilizar"></label>
+      <label>Tipo de Despesa: <input type="text" id="tipo_despesa"></label>
+      <label>Tipo Contratação: <input type="number" id="tipo_contratacao"></label>
+      <label>Modalidade de Compra: <input type="number" id="modalidade"></label>
+      <label>CNAE: <input type="text" id="cnae"></label>
+      <label>Empenho: <input type="number" id="empenho"></label>
+      <label>Emenda Impositiva: <input type="number" id="emenda"></label>
+      <label>Valor do Empenho: <input type="number" step="0.01" id="valor_empenho"></label>
+      <label>Fornecedor: <input type="number" id="fornecedor"></label>
+      <label>Data: <input type="date" id="data2"></label>
+      <label>P. Pregão/Dispensa: <input type="text" id="pregao"></label>
+      <label>Contrato/Convênio: <input type="text" id="contrato"></label>
+      <label>Vigência: <input type="date" id="vigencia"></label>
+      <label>Fonte: <input type="text" id="fonte"></label>
+      <button type="submit">Gravar</button>
+    </form>
+  </div>
+
+  <script src="https://apis.google.com/js/api.js"></script>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
