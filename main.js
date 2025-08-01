@@ -1,6 +1,8 @@
-const API_KEY = 'AIzaSyC7ZDrZ6KFm5CG1wIfoO5PfOzs3Brmpyb0'
+// Versão final conectada ao Google Sheets
+const API_KEY = 'AIzaSyDNbQxexuY5hfYn4ED8_1xBTAdmApiKtz8'
 const SHEET_ID = '10cf_fWxIKHR8M1xT419mPjNO4a8W1RFp7nLxLTS_nl4'
-const RANGE = 'Página1' // ou o nome da aba na sua planilha
+const SHEET_NAME = 'Página1'
+const SCRIPT_URL = 'https://script.google.com/macros/s/SEU_SCRIPT_URL/exec'
 
 const tabela = document.querySelector('#requisicoes-tabela tbody')
 const cabecalho = document.querySelector('#tabela-cabecalho')
@@ -8,92 +10,100 @@ const busca = document.querySelector('#busca')
 const form = document.querySelector('#requisicao-form')
 const formContainer = document.querySelector('#form-container')
 const abrirCadastro = document.querySelector('#abrir-cadastro')
+let dados = []
+let colunas = []
+let editandoIndex = null
 
 abrirCadastro.onclick = () => {
+  editandoIndex = null
+  form.reset()
   formContainer.style.display = 'block'
   form.scrollIntoView({ behavior: 'smooth' })
 }
 
-busca.addEventListener('input', e => {
-  const termo = e.target.value.toLowerCase()
-  for (let linha of tabela.rows) {
-    const texto = linha.innerText.toLowerCase()
-    linha.style.display = texto.includes(termo) ? '' : 'none'
+form.onsubmit = e => {
+  e.preventDefault()
+  const novaLinha = {}
+  for (let el of form.elements) {
+    if (el.name) novaLinha[el.name] = el.value
   }
-})
+  fetch(SCRIPT_URL, {
+    method: 'POST',
+    body: JSON.stringify({ data: novaLinha, index: editandoIndex }),
+    headers: { 'Content-Type': 'application/json' }
+  })
+    .then(res => res.text())
+    .then(() => location.reload())
+    .catch(err => alert('Erro ao salvar'))
+}
 
 function montarCabecalho(colunas) {
   cabecalho.innerHTML = ''
   colunas.forEach(titulo => {
     const th = document.createElement('th')
     th.textContent = titulo
-    th.style.cursor = 'pointer'
     th.onclick = () => ordenarTabela(titulo)
     cabecalho.appendChild(th)
   })
+  const thAcoes = document.createElement('th')
+  thAcoes.textContent = 'Ações'
+  cabecalho.appendChild(thAcoes)
 }
 
-function ordenarTabela(coluna) {
-  const index = [...cabecalho.children].findIndex(th => th.textContent === coluna)
-  const linhas = [...tabela.rows]
-  linhas.sort((a, b) => {
-    const valA = a.cells[index].textContent
-    const valB = b.cells[index].textContent
-    return valA.localeCompare(valB, undefined, { numeric: true })
-  })
-  tabela.innerHTML = ''
-  linhas.forEach(l => tabela.appendChild(l))
-}
-
-function preencherTabela(colunas, dados) {
+function preencherTabela(colunas, linhas) {
   montarCabecalho(colunas)
   tabela.innerHTML = ''
-  dados.forEach(linha => {
+  linhas.forEach((linha, i) => {
     const tr = document.createElement('tr')
+    tr.onclick = () => abrirModalDetalhes(linha)
     linha.forEach(cel => {
       const td = document.createElement('td')
       td.textContent = cel
       tr.appendChild(td)
     })
+    const btn = document.createElement('button')
+    btn.textContent = 'Editar'
+    btn.onclick = e => {
+      e.stopPropagation()
+      formContainer.style.display = 'block'
+      editandoIndex = i + 2
+      colunas.forEach(c => {
+        if (form[c]) form[c].value = linha[colunas.indexOf(c)] || ''
+      })
+      form.scrollIntoView({ behavior: 'smooth' })
+    }
+    const td = document.createElement('td')
+    td.appendChild(btn)
+    tr.appendChild(td)
     tabela.appendChild(tr)
   })
 }
 
-function carregarDados() {
-  fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}?key=${API_KEY}`)
-    .then(r => r.json())
-    .then(data => {
-      const [colunas, ...linhas] = data.values
-      preencherTabela(colunas, linhas)
-    })
-    .catch(err => {
-      alert('Erro ao carregar dados da planilha')
-      console.error(err)
-    })
+function abrirModalDetalhes(linha) {
+  const texto = colunas.map((c, i) => `${c}: ${linha[i]}`).join('\n')
+  alert(texto)
 }
 
-form.addEventListener('submit', e => {
-  e.preventDefault()
-
-  const campos = form.querySelectorAll('input')
-  const novaLinha = Array.from(campos).map(campo => campo.value || '')
-
-  fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}:append?valueInputOption=USER_ENTERED&key=${API_KEY}`, {
-    method: 'POST',
-    body: JSON.stringify({ values: [novaLinha] }),
-    headers: { 'Content-Type': 'application/json' }
+function ordenarTabela(coluna) {
+  const index = colunas.indexOf(coluna)
+  dados.sort((a, b) => {
+    const valA = a[index]
+    const valB = b[index]
+    return valA.localeCompare(valB, undefined, { numeric: true })
   })
+  preencherTabela(colunas, dados)
+}
+
+function carregarDados() {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_NAME}?key=${API_KEY}`
+  fetch(url)
     .then(res => res.json())
-    .then(() => {
-      alert('Requisição gravada com sucesso!')
-      form.reset()
-      formContainer.style.display = 'none'
-      carregarDados()
+    .then(json => {
+      colunas = json.values[0]
+      dados = json.values.slice(1)
+      preencherTabela(colunas, dados)
     })
-    .catch(err => {
-      alert('Erro ao gravar na planilha')
-      console.error(err)
-    })
-})
+    .catch(err => alert('Erro ao carregar dados'))
+}
 
 carregarDados()
