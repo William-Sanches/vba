@@ -1,109 +1,142 @@
-// Versão final conectada ao Google Sheets
-const API_KEY = 'AIzaSyDNbQxexuY5hfYn4ED8_1xBTAdmApiKtz8'
-const SHEET_ID = '10cf_fWxIKHR8M1xT419mPjNO4a8W1RFp7nLxLTS_nl4'
-const SHEET_NAME = 'Página1'
-const SCRIPT_URL = 'https://script.google.com/macros/s/SEU_SCRIPT_URL/exec'
+const tabela = document.querySelector('#tabela tbody')
+const filtro = document.getElementById('filtro')
+const btnAdicionar = document.getElementById('btnAdicionar')
+const modalDetalhes = document.getElementById('modalDetalhes')
+const modalFormulario = document.getElementById('modalFormulario')
+const form = document.getElementById('formulario')
 
-const tabela = document.querySelector('#requisicoes-tabela tbody')
-const cabecalho = document.querySelector('#tabela-cabecalho')
-const busca = document.querySelector('#busca')
-const form = document.querySelector('#requisicao-form')
-const formContainer = document.querySelector('#form-container')
-const abrirCadastro = document.querySelector('#abrir-cadastro')
-let dados = []
-let colunas = []
-let editandoIndex = null
+let dadosPlanilha = []
+let modoEdicao = false
+let indiceEdicao = null
 
-abrirCadastro.onclick = () => {
-  editandoIndex = null
-  form.reset()
-  formContainer.style.display = 'block'
-  form.scrollIntoView({ behavior: 'smooth' })
-}
+const PLANILHA_ID = '10cf_fWxIKHR8M1xT419mPjNO4a8W1RFp7nLxLTS_nl4'
+const ABA = 'Página1'
+const API_KEY = 'AIzaSyAMEOQ4ElM803iRicZ0JggvANlZrOYHNT4'
 
-form.onsubmit = e => {
-  e.preventDefault()
-  const novaLinha = {}
-  for (let el of form.elements) {
-    if (el.name) novaLinha[el.name] = el.value
-  }
-  fetch(SCRIPT_URL, {
-    method: 'POST',
-    body: JSON.stringify({ data: novaLinha, index: editandoIndex }),
-    headers: { 'Content-Type': 'application/json' }
-  })
-    .then(res => res.text())
-    .then(() => location.reload())
-    .catch(err => alert('Erro ao salvar'))
-}
+async function carregarDados() {
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${PLANILHA_ID}/values/${ABA}?key=${API_KEY}`
 
-function montarCabecalho(colunas) {
-  cabecalho.innerHTML = ''
-  colunas.forEach(titulo => {
-    const th = document.createElement('th')
-    th.textContent = titulo
-    th.onclick = () => ordenarTabela(titulo)
-    cabecalho.appendChild(th)
-  })
-  const thAcoes = document.createElement('th')
-  thAcoes.textContent = 'Ações'
-  cabecalho.appendChild(thAcoes)
-}
+    try {
+        const res = await fetch(url)
+        const json = await res.json()
 
-function preencherTabela(colunas, linhas) {
-  montarCabecalho(colunas)
-  tabela.innerHTML = ''
-  linhas.forEach((linha, i) => {
-    const tr = document.createElement('tr')
-    tr.onclick = () => abrirModalDetalhes(linha)
-    linha.forEach(cel => {
-      const td = document.createElement('td')
-      td.textContent = cel
-      tr.appendChild(td)
-    })
-    const btn = document.createElement('button')
-    btn.textContent = 'Editar'
-    btn.onclick = e => {
-      e.stopPropagation()
-      formContainer.style.display = 'block'
-      editandoIndex = i + 2
-      colunas.forEach(c => {
-        if (form[c]) form[c].value = linha[colunas.indexOf(c)] || ''
-      })
-      form.scrollIntoView({ behavior: 'smooth' })
+        const nomesColunas = json.values[0]
+        const linhas = json.values.slice(1)
+
+        dadosPlanilha = linhas.map(linha => {
+            const item = {}
+            nomesColunas.forEach((coluna, i) => {
+                item[coluna] = linha[i] || ''
+            })
+            return item
+        })
+
+        exibirTabela(filtrar(dadosPlanilha))
+    } catch (erro) {
+        console.error('Erro ao carregar dados:', erro)
     }
-    const td = document.createElement('td')
-    td.appendChild(btn)
-    tr.appendChild(td)
-    tabela.appendChild(tr)
-  })
 }
 
-function abrirModalDetalhes(linha) {
-  const texto = colunas.map((c, i) => `${c}: ${linha[i]}`).join('\n')
-  alert(texto)
-}
 
-function ordenarTabela(coluna) {
-  const index = colunas.indexOf(coluna)
-  dados.sort((a, b) => {
-    const valA = a[index]
-    const valB = b[index]
-    return valA.localeCompare(valB, undefined, { numeric: true })
-  })
-  preencherTabela(colunas, dados)
-}
+function exibirTabela(dados) {
+    tabela.innerHTML = ''
 
-function carregarDados() {
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_NAME}?key=${API_KEY}`
-  fetch(url)
-    .then(res => res.json())
-    .then(json => {
-      colunas = json.values[0]
-      dados = json.values.slice(1)
-      preencherTabela(colunas, dados)
+    dados.forEach((item, i) => {
+        const tr = document.createElement('tr')
+        tr.innerHTML = `
+            <td>${item['Codigo rms'] || ''}</td>
+            <td>${item['Solicitado por:'] || ''}</td>
+            <td>${item['Objeto da Compra'] || ''}</td>
+            <td>${item['Valor'] || ''}</td>
+            <td>${item['Data1'] || ''}</td>
+            <td>
+                <button onclick="verDetalhes(${i})">Ver</button>
+                <button onclick="editarItem(${i})">Editar</button>
+            </td>
+        `
+        tabela.appendChild(tr)
     })
-    .catch(err => alert('Erro ao carregar dados'))
+}
+
+function verDetalhes(index) {
+    const item = filtrar(dadosPlanilha)[index]
+    const container = document.getElementById('detalhesContainer')
+    container.innerHTML = ''
+
+    for (const chave in item) {
+        const p = document.createElement('p')
+        p.innerHTML = `<strong>${chave}:</strong> ${item[chave]}`
+        container.appendChild(p)
+    }
+
+    mostrarModal('modalDetalhes')
+}
+
+function editarItem(index) {
+    const item = filtrar(dadosPlanilha)[index]
+    const campos = form.querySelectorAll('input')
+
+    campos.forEach(input => {
+        input.value = item[input.name] || ''
+    })
+
+    modoEdicao = true
+    indiceEdicao = index
+    mostrarModal('modalFormulario')
+}
+
+form.addEventListener('submit', e => {
+    e.preventDefault()
+
+    const dados = {}
+    const campos = form.querySelectorAll('input')
+
+    campos.forEach(input => {
+        dados[input.name] = input.value
+    })
+
+    if (modoEdicao) {
+        dadosPlanilha[indiceEdicao] = dados
+    } else {
+        dadosPlanilha.push(dados)
+    }
+
+    form.reset()
+    esconderModal('modalFormulario')
+    modoEdicao = false
+    exibirTabela(filtrar(dadosPlanilha))
+})
+
+filtro.addEventListener('input', () => {
+    exibirTabela(filtrar(dadosPlanilha))
+})
+
+function filtrar(lista) {
+    const termo = filtro.value.toLowerCase()
+    return lista.filter(item => {
+        return Object.values(item).some(valor => valor.toLowerCase().includes(termo))
+    })
+}
+
+btnAdicionar.addEventListener('click', () => {
+    form.reset()
+    modoEdicao = false
+    mostrarModal('modalFormulario')
+})
+
+document.querySelectorAll('.fechar').forEach(botao => {
+    botao.addEventListener('click', () => {
+        const id = botao.dataset.close
+        esconderModal(id)
+    })
+})
+
+function mostrarModal(id) {
+    document.getElementById(id).classList.add('mostrar')
+}
+
+function esconderModal(id) {
+    document.getElementById(id).classList.remove('mostrar')
 }
 
 carregarDados()

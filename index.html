@@ -1,61 +1,88 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
-  <meta charset="UTF-8">
-  <title>Requisições</title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <title>Controle de Pagamentos</title>
+    <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
-  <h1>Lista de Requisições</h1>
+    <header>
+        <h1>Controle de Pagamentos</h1>
+        <div class="filtros">
+            <input type="text" id="filtro" placeholder="Filtrar por qualquer campo">
+            <button id="btnAdicionar">Adicionar Novo</button>
+        </div>
+    </header>
 
-  <input type="text" id="busca" placeholder="Buscar..." />
+    <main>
+        <table id="tabela">
+            <thead>
+                <tr>
+                    <th>Código RMS</th>
+                    <th>Solicitado Por</th>
+                    <th>Objeto</th>
+                    <th>Valor</th>
+                    <th>Data</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Dados via JS -->
+            </tbody>
+        </table>
+    </main>
 
-  <table id="requisicoes-tabela">
-    <thead>
-      <tr id="tabela-cabecalho"></tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+    <!-- Modal de Detalhes -->
+    <div class="modal" id="modalDetalhes">
+        <div class="modal-content">
+            <span class="fechar" data-close="modalDetalhes">×</span>
+            <div id="detalhesContainer"></div>
+        </div>
+    </div>
 
-  <button id="abrir-cadastro">Nova Requisição</button>
+    <!-- Modal de Formulário (Adicionar / Editar) -->
+    <div class="modal" id="modalFormulario">
+        <div class="modal-content">
+            <span class="fechar" data-close="modalFormulario">×</span>
+            <form id="formulario">
+                <div class="campos">
+                    <input type="text" name="Codigo rms" placeholder="Código rms">
+                    <input type="text" name="Código emp" placeholder="Código emp">
+                    <input type="text" name="1Doc solicitação" placeholder="1Doc solicitação">
+                    <input type="text" name="Solicitado por:" placeholder="Solicitado por:">
+                    <input type="text" name="1Doc requisição" placeholder="1Doc requisição">
+                    <input type="text" name="Ficha" placeholder="Ficha">
+                    <input type="text" name="RMS" placeholder="RMS">
+                    <input type="text" name="Número do Ofício" placeholder="Número do Ofício">
+                    <input type="text" name="Data1" placeholder="Data">
+                    <input type="text" name="Objeto da Compra" placeholder="Objeto da Compra">
+                    <input type="text" name="Unid. de Destino" placeholder="Unid. de Destino">
+                    <input type="text" name="Tipo de Requisição" placeholder="Tipo de Requisição">
+                    <input type="text" name="Valor" placeholder="Valor">
+                    <input type="text" name="Sub-Elemento" placeholder="Sub-Elemento">
+                    <input type="text" name='Contabilizar "D"' placeholder='Contabilizar "D"'>
+                    <input type="text" name='Tipo Despesa (Ordinário/Global/Estimativa)' placeholder='Tipo Despesa (Ordinário/Global/Estimativa)'>
+                    <input type="text" name='Tipo Contratação (Material/Serviço/Aluguel)' placeholder='Tipo Contratação (Material/Serviço/Aluguel)'>
+                    <input type="text" name="Modalidade da compra" placeholder="Modalidade da compra">
+                    <input type="text" name="CNAE" placeholder="CNAE">
+                    <input type="text" name="Empenho" placeholder="Empenho">
+                    <input type="text" name="Emenda Impositiva" placeholder="Emenda Impositiva">
+                    <input type="text" name="Valor do Empenho" placeholder="Valor do Empenho">
+                    <input type="text" name="Fornecedor" placeholder="Fornecedor">
+                    <input type="text" name="Data2" placeholder="Data">
+                    <input type="text" name="Processo de Pregão/Dispensa" placeholder="Processo de Pregão/Dispensa">
+                    <input type="text" name="Contrato/Convênio" placeholder="Contrato/Convênio">
+                    <input type="text" name="Vigencia" placeholder="Vigência">
+                    <input type="text" name="Fonte" placeholder="Fonte">
+                </div>
+                <button type="submit">Salvar</button>
+            </form>
+        </div>
+    </div>
 
-  <div id="form-container" style="display:none">
-    <h2>Nova / Editar Requisição</h2>
-    <form id="requisicao-form">
-      <div><label>Código RMS</label><input name="Código RMS" type="text" /></div>
-      <div><label>Código Empenho</label><input name="Código Empenho" type="text" /></div>
-      <div><label>código</label><input name="código" type="text" /></div>
-      <div><label>1doc solicitação</label><input name="1doc solicitação" type="text" /></div>
-      <div><label>solicitado por</label><input name="solicitado por" type="text" /></div>
-      <div><label>1doc requisição</label><input name="1doc requisição" type="text" /></div>
-      <div><label>ficha</label><input name="ficha" type="number" /></div>
-      <div><label>rms</label><input name="rms" type="number" /></div>
-      <div><label>número do ofício</label><input name="número do ofício" type="text" /></div>
-      <div><label>data</label><input name="data" type="date" /></div>
-      <div><label>objeto da compra</label><input name="objeto da compra" type="text" /></div>
-      <div><label>unid. de destino</label><input name="unid. de destino" type="number" /></div>
-      <div><label>tipo de requisição</label><input name="tipo de requisição" type="text" /></div>
-      <div><label>valor</label><input name="valor" type="number" step="0.01" /></div>
-      <div><label>sub-elemento</label><input name="sub-elemento" type="number" /></div>
-      <div><label>contabilizar "d"</label><input name="contabilizar \"d\"" type="text" /></div>
-      <div><label>tipo de despesa</label><input name="tipo de despesa" type="text" /></div>
-      <div><label>tipo contratação</label><input name="tipo contratação" type="number" /></div>
-      <div><label>modalidade de compra</label><input name="modalidade de compra" type="number" /></div>
-      <div><label>cnae</label><input name="cnae" type="text" /></div>
-      <div><label>empenho</label><input name="empenho" type="number" /></div>
-      <div><label>emenda impositiva</label><input name="emenda impositiva" type="number" /></div>
-      <div><label>valor do empenho</label><input name="valor do empenho" type="number" step="0.01" /></div>
-      <div><label>fornecedor</label><input name="fornecedor" type="number" /></div>
-      <div><label>data</label><input name="data" type="date" /></div>
-      <div><label>processo de pregão/dispensa</label><input name="processo de pregão/dispensa" type="text" /></div>
-      <div><label>contrato/convênio</label><input name="contrato/convênio" type="text" /></div>
-      <div><label>vigência</label><input name="vigência" type="date" /></div>
-      <div><label>fonte</label><input name="fonte" type="text" /></div>
-
-      <button type="submit">Salvar</button>
-    </form>
-  </div>
-
-  <script src="main.js"></script>
+    <script src="main.js"></script>
 </body>
+
 </html>
