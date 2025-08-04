@@ -1,10 +1,10 @@
 const tabela = document.querySelector('#tabela tbody');
 const filtro = document.getElementById('filtro');
 const btnAdicionar = document.getElementById('btnAdicionar');
-const btnLogin = document.getElementById('btnLogin');
 const modalDetalhes = document.getElementById('modalDetalhes');
 const modalFormulario = document.getElementById('modalFormulario');
 const form = document.getElementById('formulario');
+const btnLogin = document.getElementById('btnLogin');
 
 let dadosPlanilha = [];
 let modoEdicao = false;
@@ -12,70 +12,12 @@ let indiceEdicao = null;
 
 const PLANILHA_ID = '10cf_fWxIKHR8M1xT419mPjNO4a8W1RFp7nLxLTS_nl4';
 const ABA = 'Página1';
-const API_KEY = 'AIzaSyAMEOQ4ElM803iRicZ0JggvANlZrOYHNT4';
-const CLIENT_ID = '789808431754-iabrrvpv2hbej6eeffflfgdh12ic0kd4.apps.googleusercontent.com';
-const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
-
-let tokenClient;
-let gapiIniciado = false;
-
-btnLogin.addEventListener('click', autenticarGoogle);
-
-function iniciarGapi() {
-  return new Promise((resolve, reject) => {
-    gapi.load('client', {
-      callback: async () => {
-        try {
-          await gapi.client.init({
-            apiKey: API_KEY,
-            discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4'],
-          });
-          gapiIniciado = true;
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      },
-      onerror: () => reject('Erro ao carregar gapi client'),
-      timeout: 5000,
-      ontimeout: () => reject('Timeout ao carregar gapi client'),
-    });
-  });
-}
-
-async function autenticarGoogle() {
-  if (!gapiIniciado) {
-    await iniciarGapi();
-  }
-
-  tokenClient = google.accounts.oauth2.initTokenClient({
-    client_id: CLIENT_ID,
-    scope: SCOPES,
-    callback: async (tokenResponse) => {
-      if (tokenResponse.error) {
-        console.error('Erro no token:', tokenResponse);
-        return;
-      }
-      console.log('Autenticado com sucesso');
-      carregarDados();
-    },
-  });
-
-  tokenClient.requestAccessToken();
-}
 
 async function carregarDados() {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${PLANILHA_ID}/values/${ABA}?key=${API_KEY}`;
-
   try {
     const res = await fetch(url);
     const json = await res.json();
-
-    if (!json.values || json.values.length === 0) {
-      dadosPlanilha = [];
-      exibirTabela([]);
-      return;
-    }
 
     const nomesColunas = json.values[0];
     const linhas = json.values.slice(1);
@@ -108,6 +50,7 @@ function exibirTabela(dados) {
       <td>
         <button onclick="verDetalhes(${i})">Ver</button>
         <button onclick="editarItem(${i})">Editar</button>
+        <button onclick="deletarLinha(${i})">Deletar</button>
       </td>
     `;
     tabela.appendChild(tr);
@@ -146,50 +89,21 @@ form.addEventListener('submit', async e => {
 
   const dados = {};
   const campos = form.querySelectorAll('input');
+
   campos.forEach(input => {
     dados[input.name] = input.value;
   });
 
-  const valores = [Object.values(dados)];
-
-  try {
-    if (!gapiIniciado) {
-      await iniciarGapi();
-    }
-
-    if (!tokenClient) {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: () => {},
-      });
-    }
-
-    if (modoEdicao) {
-      const linha = indiceEdicao + 2;
-      await gapi.client.sheets.spreadsheets.values.update({
-        spreadsheetId: PLANILHA_ID,
-        range: `${ABA}!A${linha}`,
-        valueInputOption: 'RAW',
-        resource: { values: valores },
-      });
-    } else {
-      await gapi.client.sheets.spreadsheets.values.append({
-        spreadsheetId: PLANILHA_ID,
-        range: `${ABA}!A1`,
-        valueInputOption: 'RAW',
-        insertDataOption: 'INSERT_ROWS',
-        resource: { values: valores },
-      });
-    }
-
-    await carregarDados();
-    form.reset();
-    modoEdicao = false;
-    esconderModal('modalFormulario');
-  } catch (err) {
-    console.error('Erro ao gravar na planilha:', err);
+  if (modoEdicao) {
+    await editarLinha(indiceEdicao, dados);
+  } else {
+    await adicionarLinha(dados);
   }
+
+  form.reset();
+  esconderModal('modalFormulario');
+  modoEdicao = false;
+  await carregarDados();
 });
 
 filtro.addEventListener('input', () => {
@@ -209,14 +123,9 @@ document.querySelectorAll('.fechar').forEach(botao => {
   });
 });
 
-function filtrar(lista) {
-  const termo = filtro.value.toLowerCase();
-  return lista.filter(item => {
-    return Object.values(item).some(valor =>
-      valor.toString().toLowerCase().includes(termo)
-    );
-  });
-}
+btnLogin.addEventListener('click', () => {
+  autenticarGoogle();
+});
 
 function mostrarModal(id) {
   document.getElementById(id).classList.add('mostrar');
@@ -226,9 +135,111 @@ function esconderModal(id) {
   document.getElementById(id).classList.remove('mostrar');
 }
 
-// Para usar nos botões inline no HTML
-window.verDetalhes = verDetalhes;
-window.editarItem = editarItem;
+// Função para autenticação com Google
+async function autenticarGoogle() {
+  await gapi.load('client:auth2', async () => {
+    await gapi.client.init({
+      clientId: '789808431754-iabrrvpv2hbej6eeffflfgdh12ic0kd4.apps.googleusercontent.com',
+      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      discoveryDocs: ["https://sheets.googleapis.com/$discovery/rest?version=v4"]
+    });
 
-// Carrega dados inicialmente
+    if (!gapi.auth2.getAuthInstance().isSignedIn.get()) {
+      await gapi.auth2.getAuthInstance().signIn();
+    }
+
+    gapi.client.setApiKey(API_KEY);
+    carregarDados();
+  });
+}
+
+const API_KEY = 'AIzaSyAMEOQ4ElM803iRicZ0JggvANlZrOYHNT4';
+
+// Função para adicionar uma nova linha
+async function adicionarLinha(dados) {
+  const valores = Object.values(dados);
+
+  const request = {
+    spreadsheetId: PLANILHA_ID,
+    range: ABA,
+    valueInputOption: 'RAW',
+    insertDataOption: 'INSERT_ROWS',
+    resource: {
+      values: [valores]
+    }
+  };
+
+  try {
+    await gapi.client.sheets.spreadsheets.values.append(request);
+  } catch (error) {
+    console.error('Erro ao adicionar linha:', error);
+  }
+}
+
+// Função para editar uma linha existente
+async function editarLinha(indiceDados, dados) {
+  const response = await gapi.client.sheets.spreadsheets.values.get({
+    spreadsheetId: PLANILHA_ID,
+    range: ABA
+  });
+
+  const nomesColunas = response.result.values[0];
+  const linhaParaEditar = indiceDados + 1;
+
+  const valores = nomesColunas.map(coluna => dados[coluna] || '');
+
+  try {
+    await gapi.client.sheets.spreadsheets.values.update({
+      spreadsheetId: PLANILHA_ID,
+      range: `${ABA}!A${linhaParaEditar}`,
+      valueInputOption: 'RAW',
+      resource: {
+        values: [valores]
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao editar linha:', error);
+  }
+}
+
+// Função para deletar uma linha
+async function deletarLinha(indiceDados) {
+  const indiceLinha = indiceDados + 1;
+
+  const batchUpdateRequest = {
+    requests: [
+      {
+        deleteDimension: {
+          range: {
+            sheetId: await obterSheetId(),
+            dimension: "ROWS",
+            startIndex: indiceLinha,
+            endIndex: indiceLinha + 1
+          }
+        }
+      }
+    ]
+  };
+
+  try {
+    await gapi.client.sheets.spreadsheets.batchUpdate({
+      spreadsheetId: PLANILHA_ID,
+      resource: batchUpdateRequest
+    });
+    await carregarDados();
+  } catch (error) {
+    console.error('Erro ao deletar linha:', error);
+  }
+}
+
+// Função para obter o sheetId da aba
+async function obterSheetId() {
+  const response = await gapi.client.sheets.spreadsheets.get({
+    spreadsheetId: PLANILHA_ID
+  });
+  const sheets = response.result.sheets;
+  const aba = sheets.find(s => s.properties.title === ABA);
+  return aba ? aba.properties.sheetId : null;
+}
+
 carregarDados();
