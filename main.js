@@ -1,6 +1,7 @@
 const tabela = document.querySelector('#tabela tbody');
 const filtro = document.getElementById('filtro');
 const btnAdicionar = document.getElementById('btnAdicionar');
+const btnLogin = document.getElementById('btnLogin');
 const modalDetalhes = document.getElementById('modalDetalhes');
 const modalFormulario = document.getElementById('modalFormulario');
 const form = document.getElementById('formulario');
@@ -11,11 +12,14 @@ let indiceEdicao = null;
 
 const PLANILHA_ID = '10cf_fWxIKHR8M1xT419mPjNO4a8W1RFp7nLxLTS_nl4';
 const ABA = 'Página1';
+const API_KEY = 'AIzaSyAMEOQ4ElM803iRicZ0JggvANlZrOYHNT4';
 const CLIENT_ID = '789808431754-iabrrvpv2hbej6eeffflfgdh12ic0kd4.apps.googleusercontent.com';
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
 
 let tokenClient;
 let gapiIniciado = false;
+
+btnLogin.addEventListener('click', autenticarGoogle);
 
 function iniciarGapi() {
   return new Promise((resolve, reject) => {
@@ -23,7 +27,7 @@ function iniciarGapi() {
       callback: async () => {
         try {
           await gapi.client.init({
-            apiKey: '', // vazio para usar OAuth
+            apiKey: API_KEY,
             discoveryDocs: ['https://sheets.googleapis.com/$discovery/rest?version=v4'],
           });
           gapiIniciado = true;
@@ -39,50 +43,42 @@ function iniciarGapi() {
   });
 }
 
-function autenticarGoogle() {
-  if (!gapiIniciado) {
-    iniciarGapi().then(() => {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: async (tokenResponse) => {
-          if (tokenResponse.error) {
-            console.error('Erro no token:', tokenResponse);
-            return;
-          }
-          console.log('Autenticado com sucesso');
-          carregarDados();
-        },
-      });
-      tokenClient.requestAccessToken();
-    }).catch(console.error);
-  } else {
-    tokenClient.requestAccessToken();
-  }
-}
-
-// Adiciona o event listener para o botão de login
-document.getElementById('btnLogin').addEventListener('click', autenticarGoogle);
-
-async function carregarDados() {
+async function autenticarGoogle() {
   if (!gapiIniciado) {
     await iniciarGapi();
   }
-  try {
-    const resposta = await gapi.client.sheets.spreadsheets.values.get({
-      spreadsheetId: PLANILHA_ID,
-      range: ABA,
-    });
 
-    const valores = resposta.result.values;
-    if (!valores || valores.length === 0) {
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: async (tokenResponse) => {
+      if (tokenResponse.error) {
+        console.error('Erro no token:', tokenResponse);
+        return;
+      }
+      console.log('Autenticado com sucesso');
+      carregarDados();
+    },
+  });
+
+  tokenClient.requestAccessToken();
+}
+
+async function carregarDados() {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${PLANILHA_ID}/values/${ABA}?key=${API_KEY}`;
+
+  try {
+    const res = await fetch(url);
+    const json = await res.json();
+
+    if (!json.values || json.values.length === 0) {
       dadosPlanilha = [];
       exibirTabela([]);
       return;
     }
 
-    const nomesColunas = valores[0];
-    const linhas = valores.slice(1);
+    const nomesColunas = json.values[0];
+    const linhas = json.values.slice(1);
 
     dadosPlanilha = linhas.map(linha => {
       const item = {};
@@ -93,8 +89,8 @@ async function carregarDados() {
     });
 
     exibirTabela(filtrar(dadosPlanilha));
-  } catch (err) {
-    console.error('Erro ao carregar dados:', err);
+  } catch (erro) {
+    console.error('Erro ao carregar dados:', erro);
   }
 }
 
@@ -157,8 +153,20 @@ form.addEventListener('submit', async e => {
   const valores = [Object.values(dados)];
 
   try {
+    if (!gapiIniciado) {
+      await iniciarGapi();
+    }
+
+    if (!tokenClient) {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: () => {},
+      });
+    }
+
     if (modoEdicao) {
-      const linha = indiceEdicao + 2; // +2 para considerar cabeçalho e índice 0
+      const linha = indiceEdicao + 2;
       await gapi.client.sheets.spreadsheets.values.update({
         spreadsheetId: PLANILHA_ID,
         range: `${ABA}!A${linha}`,
@@ -218,9 +226,9 @@ function esconderModal(id) {
   document.getElementById(id).classList.remove('mostrar');
 }
 
-// Expõe funções para o HTML
+// Para usar nos botões inline no HTML
 window.verDetalhes = verDetalhes;
 window.editarItem = editarItem;
 
-// Carrega dados na inicialização (sem necessidade de login para leitura pública)
+// Carrega dados inicialmente
 carregarDados();
