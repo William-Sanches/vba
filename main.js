@@ -18,6 +18,7 @@ const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
 
 let tokenClient;
 let gapiIniciado = false;
+let accessToken = null;  // Guarda o token atual
 
 btnLogin.addEventListener('click', autenticarGoogle);
 
@@ -51,17 +52,52 @@ async function autenticarGoogle() {
   tokenClient = google.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
     scope: SCOPES,
-    callback: async (tokenResponse) => {
+    callback: (tokenResponse) => {
       if (tokenResponse.error) {
         console.error('Erro no token:', tokenResponse);
         return;
       }
+      accessToken = tokenResponse.access_token;  // salva token
       console.log('Autenticado com sucesso');
       carregarDados();
     },
   });
 
+  // Solicita o token com popup na primeira vez
   tokenClient.requestAccessToken();
+}
+
+// Função para garantir que exista token válido antes da requisição API
+async function garantirToken() {
+  return new Promise((resolve, reject) => {
+    if (!tokenClient) {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: (tokenResponse) => {
+          if (tokenResponse.error) {
+            console.error('Erro no token:', tokenResponse);
+            reject(tokenResponse.error);
+            return;
+          }
+          accessToken = tokenResponse.access_token;
+          resolve(accessToken);
+        },
+      });
+    }
+
+    if (accessToken) {
+      // Token já existe, tenta renovar silenciosamente (sem popup)
+      tokenClient.requestAccessToken({ prompt: '' });
+      resolve(accessToken);
+    } else {
+      // Não tem token, pede com popup
+      tokenClient.requestAccessToken();
+      // A resolução vai acontecer no callback do tokenClient
+      // Para isso, vamos escutar o callback do tokenClient para resolver a Promise
+      // Porém, callback do tokenClient já faz resolve/reject acima, então aqui ok.
+    }
+  });
 }
 
 async function carregarDados() {
@@ -70,16 +106,7 @@ async function carregarDados() {
       await iniciarGapi();
     }
 
-    if (!tokenClient) {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: () => {},
-      });
-    }
-
-    // Garante que há um token válido
-    tokenClient.requestAccessToken({ prompt: '' });
+    await garantirToken();  // garante token válido antes da chamada
 
     const response = await gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: PLANILHA_ID,
@@ -175,13 +202,7 @@ form.addEventListener('submit', async e => {
       await iniciarGapi();
     }
 
-    if (!tokenClient) {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: () => {},
-      });
-    }
+    await garantirToken();  // garante token antes de enviar
 
     if (modoEdicao) {
       const linha = indiceEdicao + 2;
@@ -219,15 +240,8 @@ async function removerItem(index) {
       await iniciarGapi();
     }
 
-    if (!tokenClient) {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: () => {},
-      });
-    }
+    await garantirToken();  // garante token antes da requisição
 
-    // Calcular a linha a ser deletada (considerando o cabeçalho)
     const linhaParaDeletar = index + 1 + 1;
 
     await gapi.client.sheets.spreadsheets.batchUpdate({
@@ -237,7 +251,7 @@ async function removerItem(index) {
           {
             deleteDimension: {
               range: {
-                sheetId: 0, // Atenção! Altere esse ID caso sua planilha tenha múltiplas abas com IDs diferentes
+                sheetId: 0,
                 dimension: "ROWS",
                 startIndex: linhaParaDeletar - 1,
                 endIndex: linhaParaDeletar,
@@ -289,6 +303,32 @@ function mostrarModal(id) {
 function esconderModal(id) {
   document.getElementById(id).classList.remove('mostrar');
 }
+
+// Inicializa gapi e tenta pegar token silenciosamente no carregamento da página
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    await iniciarGapi();
+
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      callback: (tokenResponse) => {
+        if (tokenResponse.error) {
+          console.warn('Token não obtido silenciosamente:', tokenResponse);
+          return;
+        }
+        accessToken = tokenResponse.access_token;
+        console.log('Token obtido silenciosamente');
+        carregarDados();
+      },
+    });
+
+    // Tenta obter token sem popup para login automático se autorizado
+    tokenClient.requestAccessToken({ prompt: '' });
+  } catch (err) {
+    console.error('Erro na inicialização automática:', err);
+  }
+});
 
 // Para usar nos botões inline no HTML
 window.verDetalhes = verDetalhes;
