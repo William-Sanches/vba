@@ -108,6 +108,7 @@ function exibirTabela(dados) {
       <td>
         <button onclick="verDetalhes(${i})">Ver</button>
         <button onclick="editarItem(${i})">Editar</button>
+	<button onclick="removerItem(${i})">Remover</button>
       </td>
     `;
     tabela.appendChild(tr);
@@ -192,6 +193,52 @@ form.addEventListener('submit', async e => {
   }
 });
 
+async function removerItem(index) {
+  const confirmacao = confirm("Tem certeza que deseja remover este item?");
+  if (!confirmacao) return;
+
+  try {
+    if (!gapiIniciado) {
+      await iniciarGapi();
+    }
+
+    if (!tokenClient) {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: () => {},
+      });
+    }
+
+    // Calcular a linha a ser deletada (considerando o cabeçalho)
+    const linhaParaDeletar = index + 1 + 1;
+
+    await gapi.client.sheets.spreadsheets.batchUpdate({
+      spreadsheetId: PLANILHA_ID,
+      resource: {
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId: 0, // Atenção! Altere esse ID caso sua planilha tenha múltiplas abas com IDs diferentes
+                dimension: "ROWS",
+                startIndex: linhaParaDeletar - 1,
+                endIndex: linhaParaDeletar,
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    await carregarDados();
+    alert("Item removido com sucesso.");
+  } catch (err) {
+    console.error("Erro ao remover item:", err);
+    alert("Erro ao remover item.");
+  }
+}
+
 filtro.addEventListener('input', () => {
   exibirTabela(filtrar(dadosPlanilha));
 });
@@ -229,6 +276,7 @@ function esconderModal(id) {
 // Para usar nos botões inline no HTML
 window.verDetalhes = verDetalhes;
 window.editarItem = editarItem;
+window.removerItem = removerItem;
 
 // Carrega dados inicialmente
 carregarDados();
