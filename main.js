@@ -65,11 +65,28 @@ async function autenticarGoogle() {
 }
 
 async function carregarDados() {
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${PLANILHA_ID}/values/${ABA}?key=${API_KEY}`;
-
   try {
-    const res = await fetch(url);
-    const json = await res.json();
+    if (!gapiIniciado) {
+      await iniciarGapi();
+    }
+
+    if (!tokenClient) {
+      tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: () => {},
+      });
+    }
+
+    // Garante que há um token válido
+    tokenClient.requestAccessToken({ prompt: '' });
+
+    const response = await gapi.client.sheets.spreadsheets.values.get({
+      spreadsheetId: PLANILHA_ID,
+      range: ABA,
+    });
+
+    const json = response.result;
 
     if (!json.values || json.values.length === 0) {
       dadosPlanilha = [];
@@ -277,6 +294,3 @@ function esconderModal(id) {
 window.verDetalhes = verDetalhes;
 window.editarItem = editarItem;
 window.removerItem = removerItem;
-
-// Carrega dados inicialmente
-carregarDados();
