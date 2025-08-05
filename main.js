@@ -18,7 +18,7 @@ const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
 
 let tokenClient;
 let gapiIniciado = false;
-let accessToken = null;  // Guarda o token atual
+let accessToken = null;  // guarda o token após login
 
 btnLogin.addEventListener('click', autenticarGoogle);
 
@@ -57,56 +57,28 @@ async function autenticarGoogle() {
         console.error('Erro no token:', tokenResponse);
         return;
       }
-      accessToken = tokenResponse.access_token;  // salva token
+      accessToken = tokenResponse.access_token;
+      gapi.client.setToken({ access_token: accessToken });
       console.log('Autenticado com sucesso');
       carregarDados();
     },
   });
 
-  // Solicita o token com popup na primeira vez
   tokenClient.requestAccessToken();
 }
 
-// Função para garantir que exista token válido antes da requisição API
-async function garantirToken() {
-  return new Promise((resolve, reject) => {
-    if (!tokenClient) {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: (tokenResponse) => {
-          if (tokenResponse.error) {
-            console.error('Erro no token:', tokenResponse);
-            reject(tokenResponse.error);
-            return;
-          }
-          accessToken = tokenResponse.access_token;
-          resolve(accessToken);
-        },
-      });
-    }
-
-    if (accessToken) {
-      // Token já existe, tenta renovar silenciosamente (sem popup)
-      tokenClient.requestAccessToken({ prompt: '' });
-      resolve(accessToken);
-    } else {
-      // Não tem token, pede com popup
-      tokenClient.requestAccessToken();
-      // A resolução vai acontecer no callback do tokenClient
-      // Para isso, vamos escutar o callback do tokenClient para resolver a Promise
-      // Porém, callback do tokenClient já faz resolve/reject acima, então aqui ok.
-    }
-  });
-}
-
 async function carregarDados() {
+  if (!accessToken) {
+    alert("Por favor, faça login primeiro para carregar os dados.");
+    return;
+  }
+
   try {
     if (!gapiIniciado) {
       await iniciarGapi();
     }
 
-    await garantirToken();  // garante token válido antes da chamada
+    gapi.client.setToken({ access_token: accessToken });
 
     const response = await gapi.client.sheets.spreadsheets.values.get({
       spreadsheetId: PLANILHA_ID,
@@ -135,6 +107,10 @@ async function carregarDados() {
     exibirTabela(filtrar(dadosPlanilha));
   } catch (erro) {
     console.error('Erro ao carregar dados:', erro);
+    if (erro.status === 401) {
+      alert("Token expirado, por favor faça login novamente.");
+      accessToken = null;
+    }
   }
 }
 
@@ -152,7 +128,7 @@ function exibirTabela(dados) {
       <td>
         <button onclick="verDetalhes(${i})">Ver</button>
         <button onclick="editarItem(${i})">Editar</button>
-	<button onclick="removerItem(${i})">Remover</button>
+        <button onclick="removerItem(${i})">Remover</button>
       </td>
     `;
     tabela.appendChild(tr);
@@ -189,6 +165,11 @@ function editarItem(index) {
 form.addEventListener('submit', async e => {
   e.preventDefault();
 
+  if (!accessToken) {
+    alert("Por favor, faça login antes de salvar dados.");
+    return;
+  }
+
   const dados = {};
   const campos = form.querySelectorAll('input');
   campos.forEach(input => {
@@ -202,7 +183,7 @@ form.addEventListener('submit', async e => {
       await iniciarGapi();
     }
 
-    await garantirToken();  // garante token antes de enviar
+    gapi.client.setToken({ access_token: accessToken });
 
     if (modoEdicao) {
       const linha = indiceEdicao + 2;
@@ -228,10 +209,19 @@ form.addEventListener('submit', async e => {
     esconderModal('modalFormulario');
   } catch (err) {
     console.error('Erro ao gravar na planilha:', err);
+    if (err.status === 401) {
+      alert("Token expirado, por favor faça login novamente.");
+      accessToken = null;
+    }
   }
 });
 
 async function removerItem(index) {
+  if (!accessToken) {
+    alert("Por favor, faça login antes de remover itens.");
+    return;
+  }
+
   const confirmacao = confirm("Tem certeza que deseja remover este item?");
   if (!confirmacao) return;
 
@@ -240,8 +230,9 @@ async function removerItem(index) {
       await iniciarGapi();
     }
 
-    await garantirToken();  // garante token antes da requisição
+    gapi.client.setToken({ access_token: accessToken });
 
+    // Calcular a linha a ser deletada (considerando o cabeçalho)
     const linhaParaDeletar = index + 1 + 1;
 
     await gapi.client.sheets.spreadsheets.batchUpdate({
@@ -251,7 +242,7 @@ async function removerItem(index) {
           {
             deleteDimension: {
               range: {
-                sheetId: 0,
+                sheetId: 0, // Atenção! Altere esse ID caso sua planilha tenha múltiplas abas com IDs diferentes
                 dimension: "ROWS",
                 startIndex: linhaParaDeletar - 1,
                 endIndex: linhaParaDeletar,
@@ -267,6 +258,10 @@ async function removerItem(index) {
   } catch (err) {
     console.error("Erro ao remover item:", err);
     alert("Erro ao remover item.");
+    if (err.status === 401) {
+      alert("Token expirado, por favor faça login novamente.");
+      accessToken = null;
+    }
   }
 }
 
@@ -303,32 +298,6 @@ function mostrarModal(id) {
 function esconderModal(id) {
   document.getElementById(id).classList.remove('mostrar');
 }
-
-// Inicializa gapi e tenta pegar token silenciosamente no carregamento da página
-window.addEventListener('DOMContentLoaded', async () => {
-  try {
-    await iniciarGapi();
-
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID,
-      scope: SCOPES,
-      callback: (tokenResponse) => {
-        if (tokenResponse.error) {
-          console.warn('Token não obtido silenciosamente:', tokenResponse);
-          return;
-        }
-        accessToken = tokenResponse.access_token;
-        console.log('Token obtido silenciosamente');
-        carregarDados();
-      },
-    });
-
-    // Tenta obter token sem popup para login automático se autorizado
-    tokenClient.requestAccessToken({ prompt: '' });
-  } catch (err) {
-    console.error('Erro na inicialização automática:', err);
-  }
-});
 
 // Para usar nos botões inline no HTML
 window.verDetalhes = verDetalhes;
